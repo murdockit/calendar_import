@@ -52,6 +52,7 @@ In the Apps Script editor: **Project Settings** → **Script Properties** →
 | `GMAIL_QUERY` | No | Defaults to `label:flyers -label:flyers-processed -label:flyers-failed` |
 | `MAX_MESSAGES_PER_RUN` | No | Defaults to `5` |
 | `SUMMARY_EMAIL` | No | Defaults to the script owner's email |
+| `CALENDAR_MAP` | No | JSON object routing events to different calendars by an alias in the subject line — see "Multiple calendars" below |
 
 ## 4. Find your shared calendar's ID
 
@@ -65,6 +66,31 @@ In the Apps Script editor: **Project Settings** → **Script Properties** →
 The script deliberately does **not** default to your primary calendar — it
 fails loudly if `CALENDAR_ID` isn't set, so events can't accidentally land in
 the wrong place.
+
+### Multiple calendars (optional)
+
+If you have more than one shared calendar (e.g. one per kid, per household
+member, or per activity type — visible in the screenshot as "Chloe",
+"Lydia", "Family", etc.), you can route a forwarded flyer to a specific one
+by tagging the subject line, using the `CALENDAR_MAP` script property.
+
+1. Get the Calendar ID for each calendar you want to target (repeat step 4
+   above for each one).
+2. Set `CALENDAR_MAP` to a JSON object mapping a short alias to each Calendar
+   ID, e.g.:
+
+   ```json
+   {"chloe": "abc123...@group.calendar.google.com", "lydia": "def456...@group.calendar.google.com"}
+   ```
+
+3. When forwarding a flyer, put the alias in brackets anywhere in the subject,
+   e.g. `Fwd: [Chloe] Soccer schedule`. The script checks (case-insensitively):
+   - a bracketed tag like `[chloe]` first,
+   - then a plain substring match of any alias in the subject,
+   - and falls back to the default `CALENDAR_ID` if nothing matches.
+
+Events created and duplicate-skips in the summary email note which calendar
+they landed on, e.g. `Soccer practice — 2026-08-01 (all day) [Chloe]`.
 
 ## 5. Authorize and install the trigger
 

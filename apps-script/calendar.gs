@@ -28,15 +28,16 @@ function createEventFromExtraction(event, meta, config, results) {
     event.end_time = null; // don't fail the whole event over a malformed end time
   }
 
-  var calendar = CalendarApp.getCalendarById(config.calendarId);
+  var calendarId = resolveCalendarId_(subject, config);
+  var calendar = CalendarApp.getCalendarById(calendarId);
   if (!calendar) {
-    throw new Error('Could not open calendar with ID "' + config.calendarId + '". Check the CALENDAR_ID script property.');
+    throw new Error('Could not open calendar with ID "' + calendarId + '". Check the CALENDAR_ID/CALENDAR_MAP script properties.');
   }
 
   var dayDate = parseDateInTimeZone_(event.date);
 
   if (isDuplicate_(calendar, dayDate, event.title)) {
-    results.duplicates.push({ title: event.title, date: event.date });
+    results.duplicates.push({ title: event.title, date: event.date, calendar: calendar.getName() });
     return;
   }
 
@@ -57,18 +58,44 @@ function createEventFromExtraction(event, meta, config, results) {
       location: event.location || '',
       description: description
     });
-    results.created.push({ title: event.title, date: event.date, start_time: event.start_time, location: event.location });
+    results.created.push({ title: event.title, date: event.date, start_time: event.start_time, location: event.location, calendar: calendar.getName() });
   } else {
     calendar.createAllDayEvent(event.title, dayDate, {
       location: event.location || '',
       description: description
     });
-    results.created.push({ title: event.title, date: event.date, start_time: null, location: event.location });
+    results.created.push({ title: event.title, date: event.date, start_time: null, location: event.location, calendar: calendar.getName() });
   }
 
   if (event.confidence === 'low') {
     results.lowConfidence.push({ title: event.title, date: event.date });
   }
+}
+
+/**
+ * Picks the target calendar ID for a message based on its subject line.
+ *
+ * Looks for a bracket tag first (e.g. "Fwd: [Chloe] Soccer schedule" matches
+ * alias "chloe" in CALENDAR_MAP), then falls back to a plain substring match
+ * of any alias name in the subject, then to the default CALENDAR_ID.
+ */
+function resolveCalendarId_(subject, config) {
+  var map = config.calendarMap || {};
+  var subjectLower = (subject || '').toLowerCase();
+
+  var bracketMatch = subjectLower.match(/\[([^\]]+)\]/);
+  if (bracketMatch) {
+    var tag = bracketMatch[1].trim();
+    if (map[tag]) return map[tag];
+  }
+
+  for (var alias in map) {
+    if (subjectLower.indexOf(alias.toLowerCase()) !== -1) {
+      return map[alias];
+    }
+  }
+
+  return config.calendarId;
 }
 
 function isDuplicate_(calendar, dayDate, title) {

@@ -22,7 +22,7 @@ function buildSummaryEmail(results) {
   } else {
     results.created.forEach(function (e) {
       var when = e.date + (e.start_time ? ' ' + e.start_time : ' (all day)');
-      lines.push('  - ' + e.title + ' — ' + when + (e.location ? ' @ ' + e.location : ''));
+      lines.push('  - ' + e.title + ' — ' + when + (e.location ? ' @ ' + e.location : '') + (e.calendar ? ' [' + e.calendar + ']' : ''));
     });
   }
   lines.push('');
@@ -32,7 +32,7 @@ function buildSummaryEmail(results) {
     lines.push('  (none)');
   } else {
     results.duplicates.forEach(function (e) {
-      lines.push('  - ' + e.title + ' — ' + e.date);
+      lines.push('  - ' + e.title + ' — ' + e.date + (e.calendar ? ' [' + e.calendar + ']' : ''));
     });
   }
   lines.push('');

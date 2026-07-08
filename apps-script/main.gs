@@ -34,8 +34,18 @@ function getConfig_() {
   if (!geminiApiKey) {
     throw new Error('GEMINI_API_KEY script property is not set. Set it before running processFlyerInbox().');
   }
+  var calendarMap = {};
+  var calendarMapRaw = props.getProperty('CALENDAR_MAP');
+  if (calendarMapRaw) {
+    try {
+      calendarMap = JSON.parse(calendarMapRaw);
+    } catch (err) {
+      throw new Error('CALENDAR_MAP script property is not valid JSON: ' + err.message);
+    }
+  }
   return {
     calendarId: calendarId,
+    calendarMap: calendarMap,
     geminiApiKey: geminiApiKey,
     geminiModel: props.getProperty('GEMINI_MODEL') || 'gemini-2.5-flash',
     gmailQuery: props.getProperty('GMAIL_QUERY') || ('label:' + LABEL_INPUT + ' -label:' + LABEL_PROCESSED + ' -label:' + LABEL_FAILED),
