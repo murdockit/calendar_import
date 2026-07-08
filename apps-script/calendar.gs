@@ -28,7 +28,7 @@ function createEventFromExtraction(event, meta, config, results) {
     event.end_time = null; // don't fail the whole event over a malformed end time
   }
 
-  var calendarId = resolveCalendarId_(subject, config);
+  var calendarId = meta.calendarId || config.calendarId;
   var calendar = CalendarApp.getCalendarById(calendarId);
   if (!calendar) {
     throw new Error('Could not open calendar with ID "' + calendarId + '". Check the CALENDAR_ID/CALENDAR_MAP script properties.');
@@ -73,29 +73,52 @@ function createEventFromExtraction(event, meta, config, results) {
 }
 
 /**
- * Picks the target calendar ID for a message based on its subject line.
+ * Picks the target calendar for a message based on its subject line.
  *
- * Looks for a bracket tag first (e.g. "Fwd: [Chloe] Soccer schedule" matches
+ * Looks for bracket tags first (e.g. "Fwd: [Chloe] Soccer schedule" matches
  * alias "chloe" in CALENDAR_MAP), then falls back to a plain substring match
  * of any alias name in the subject, then to the default CALENDAR_ID.
+ * Map keys are pre-normalized to lowercase in getConfig_().
+ *
+ * Returns { calendarId, matchedAlias, warning } — warning is set when the
+ * subject carries a bracket tag that routed nowhere, so the summary email can
+ * surface misconfigured tags instead of silently using the default calendar.
  */
-function resolveCalendarId_(subject, config) {
+function resolveCalendarRouting_(subject, config) {
   var map = config.calendarMap || {};
+  var aliases = Object.keys(map);
   var subjectLower = (subject || '').toLowerCase();
 
-  var bracketMatch = subjectLower.match(/\[([^\]]+)\]/);
-  if (bracketMatch) {
-    var tag = bracketMatch[1].trim();
-    if (map[tag]) return map[tag];
+  // Check every bracket tag in the subject (forwards often carry extra tags
+  // like "[EXTERNAL]"), not just the first one.
+  var tags = [];
+  var re = /\[([^\]]+)\]/g;
+  var m;
+  while ((m = re.exec(subjectLower)) !== null) {
+    tags.push(m[1].trim());
   }
-
-  for (var alias in map) {
-    if (subjectLower.indexOf(alias.toLowerCase()) !== -1) {
-      return map[alias];
+  for (var i = 0; i < tags.length; i++) {
+    if (map[tags[i]]) {
+      return { calendarId: map[tags[i]], matchedAlias: tags[i] };
     }
   }
 
-  return config.calendarId;
+  for (var a = 0; a < aliases.length; a++) {
+    if (subjectLower.indexOf(aliases[a]) !== -1) {
+      return { calendarId: map[aliases[a]], matchedAlias: aliases[a] };
+    }
+  }
+
+  var result = { calendarId: config.calendarId, matchedAlias: null };
+  if (tags.length > 0) {
+    if (aliases.length === 0) {
+      result.warning = 'Subject tag [' + tags[0] + '] found but CALENDAR_MAP is empty or unset — events went to the default calendar. ' +
+        'Check the CALENDAR_MAP script property and make sure the latest main.gs is deployed.';
+    } else {
+      result.warning = 'Subject tag [' + tags.join('], [') + '] matched no CALENDAR_MAP alias (known: ' + aliases.join(', ') + ') — events went to the default calendar.';
+    }
+  }
+  return result;
 }
 
 function isDuplicate_(calendar, dayDate, title) {

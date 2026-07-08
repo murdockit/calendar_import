@@ -37,10 +37,21 @@ function getConfig_() {
   var calendarMap = {};
   var calendarMapRaw = props.getProperty('CALENDAR_MAP');
   if (calendarMapRaw) {
+    var parsed;
     try {
-      calendarMap = JSON.parse(calendarMapRaw);
+      parsed = JSON.parse(calendarMapRaw);
     } catch (err) {
-      throw new Error('CALENDAR_MAP script property is not valid JSON: ' + err.message);
+      throw new Error('CALENDAR_MAP script property is not valid JSON (use double quotes, no trailing commas): ' + err.message);
+    }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('CALENDAR_MAP must be a JSON object of {"alias": "calendar-id"} pairs.');
+    }
+    for (var key in parsed) {
+      if (typeof parsed[key] !== 'string' || !parsed[key].trim()) {
+        throw new Error('CALENDAR_MAP entry "' + key + '" must have a calendar ID string as its value.');
+      }
+      // Normalize alias keys so matching is case/whitespace-insensitive.
+      calendarMap[String(key).trim().toLowerCase()] = parsed[key].trim();
     }
   }
   return {
@@ -70,6 +81,37 @@ function installTrigger() {
     .everyMinutes(15)
     .create();
   Logger.log('Installed 15-minute trigger for processFlyerInbox.');
+}
+
+/**
+ * Diagnostic: run this from the Apps Script editor to check CALENDAR_MAP
+ * routing. Edit TEST_SUBJECT below to try different subject lines, then
+ * read the output in the execution log.
+ */
+function debugCalendarRouting() {
+  var TEST_SUBJECT = 'Fwd: [lydia] Test flyer';
+
+  var raw = PropertiesService.getScriptProperties().getProperty('CALENDAR_MAP');
+  Logger.log('CALENDAR_MAP raw value: ' + (raw === null ? '(not set)' : raw));
+
+  var config = getConfig_(); // throws with a clear message if config is broken
+  Logger.log('Parsed aliases: ' + (Object.keys(config.calendarMap).join(', ') || '(none)'));
+
+  function describeCalendar(label, id) {
+    var cal = CalendarApp.getCalendarById(id);
+    Logger.log(label + ' -> ' + id + ' : ' +
+      (cal ? 'OK, opens as "' + cal.getName() + '"' : 'ERROR — cannot open this ID (is it a calendar ID, not a calendar name? do you have access?)'));
+  }
+
+  describeCalendar('default CALENDAR_ID', config.calendarId);
+  for (var alias in config.calendarMap) {
+    describeCalendar('alias "' + alias + '"', config.calendarMap[alias]);
+  }
+
+  var routing = resolveCalendarRouting_(TEST_SUBJECT, config);
+  Logger.log('Subject "' + TEST_SUBJECT + '" routes to: ' + routing.calendarId +
+    (routing.matchedAlias ? ' (matched alias "' + routing.matchedAlias + '")' : ' (default — no alias matched)'));
+  if (routing.warning) Logger.log('Warning: ' + routing.warning);
 }
 
 /**
@@ -245,8 +287,15 @@ function processMessage_(message, config, results) {
     results.errors.push({ subject: subject, error: e });
   });
 
+  // Resolve the target calendar once per message; surface routing misses
+  // (e.g. a subject tag that matched no CALENDAR_MAP alias) in the summary.
+  var routing = resolveCalendarRouting_(subject, config);
+  if (routing.warning && events.length > 0) {
+    results.errors.push({ subject: subject, error: routing.warning });
+  }
+
   for (var e = 0; e < events.length; e++) {
-    createEventFromExtraction(events[e], { subject: subject }, config, results);
+    createEventFromExtraction(events[e], { subject: subject, calendarId: routing.calendarId }, config, results);
   }
   return { hardFailure: false };
 }

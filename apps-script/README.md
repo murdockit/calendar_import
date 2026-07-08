@@ -92,6 +92,30 @@ by tagging the subject line, using the `CALENDAR_MAP` script property.
 Events created and duplicate-skips in the summary email note which calendar
 they landed on, e.g. `Soccer practice — 2026-08-01 (all day) [Chloe]`.
 
+#### Troubleshooting routing
+
+If tagged events keep landing on the default calendar:
+
+- **Deploy both files.** `CALENDAR_MAP` is read in `main.gs` (not
+  `calendar.gs`) — re-paste **both** `main.gs` and `calendar.gs` whenever you
+  update.
+- **Strict JSON.** The property value must use double quotes and no trailing
+  commas: `{"chloe": "id1", "lydia": "id2"}`. Invalid JSON makes the whole run
+  fail with a clear error; a *misspelled property name* (e.g. `CALENDER_MAP`)
+  silently yields no routing.
+- **Calendar IDs, not names.** Values must be the ID from Settings →
+  Integrate calendar (`...@group.calendar.google.com`), not the calendar's
+  display name.
+- Aliases are matched case-insensitively, so `[Lydia]`, `[lydia]`, and a map
+  key of `"Lydia"` all work together.
+- **Run `debugCalendarRouting()`** from the Apps Script editor (edit its
+  `TEST_SUBJECT` to your subject line). It logs the raw and parsed map,
+  verifies every calendar ID actually opens, and shows exactly where the test
+  subject would route.
+- Routing misses are also reported in the summary email: if a subject has a
+  bracket tag that matches no alias, you'll see a warning line instead of a
+  silent fallback.
+
 ## 5. Authorize and install the trigger
 
 1. In the Apps Script editor, select the `installTrigger` function from the
