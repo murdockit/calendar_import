@@ -37,7 +37,7 @@ function getConfig_() {
   return {
     calendarId: calendarId,
     geminiApiKey: geminiApiKey,
-    geminiModel: props.getProperty('GEMINI_MODEL') || 'gemini-2.0-flash',
+    geminiModel: props.getProperty('GEMINI_MODEL') || 'gemini-2.5-flash',
     gmailQuery: props.getProperty('GMAIL_QUERY') || ('label:' + LABEL_INPUT + ' -label:' + LABEL_PROCESSED + ' -label:' + LABEL_FAILED),
     maxMessagesPerRun: Number(props.getProperty('MAX_MESSAGES_PER_RUN')) || 5,
     summaryEmail: props.getProperty('SUMMARY_EMAIL') || Session.getActiveUser().getEmail()

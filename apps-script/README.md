@@ -48,7 +48,7 @@ In the Apps Script editor: **Project Settings** → **Script Properties** →
 |---|---|---|
 | `GEMINI_API_KEY` | Yes | Your Gemini API key from AI Studio |
 | `CALENDAR_ID` | Yes | See step 4 below |
-| `GEMINI_MODEL` | No | Defaults to `gemini-2.0-flash`. Bump to a Pro model (e.g. `gemini-2.5-pro`) if extraction quality on messy/handwritten flyers isn't good enough — it's slower and costs more, but reads harder images better. |
+| `GEMINI_MODEL` | No | Defaults to `gemini-2.5-flash`. Bump to a Pro model (e.g. `gemini-2.5-pro`) if extraction quality on messy/handwritten flyers isn't good enough — it's slower and costs more, but reads harder images better. If you see a `429` with `"limit": 0` for a given model, your API key's free tier doesn't have quota for that model — switch to a different one (check current free-tier models/limits at [ai.google.dev/gemini-api/docs/rate-limits](https://ai.google.dev/gemini-api/docs/rate-limits)). |
 | `GMAIL_QUERY` | No | Defaults to `label:flyers -label:flyers-processed -label:flyers-failed` |
 | `MAX_MESSAGES_PER_RUN` | No | Defaults to `5` |
 | `SUMMARY_EMAIL` | No | Defaults to the script owner's email |
