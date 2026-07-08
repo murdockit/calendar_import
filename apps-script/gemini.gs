@@ -90,7 +90,11 @@ function callGemini_(parts, config) {
     generationConfig: {
       responseMimeType: 'application/json',
       responseSchema: buildResponseSchema_(),
-      maxOutputTokens: 2000
+      // 2.5 models spend "thinking" tokens from the same budget, so keep it
+      // roomy and disable thinking — extraction doesn't need it. Remove
+      // thinkingConfig if using a model that rejects it (e.g. 2.0-era models).
+      maxOutputTokens: 8192,
+      thinkingConfig: { thinkingBudget: 0 }
     }
   };
 
@@ -106,6 +110,11 @@ function callGemini_(parts, config) {
   var code = response.getResponseCode();
   var body = response.getContentText();
 
+  if (code === 429) {
+    var quotaErr = new Error('Gemini API quota/rate limit exceeded (HTTP 429): ' + body.substring(0, 300));
+    quotaErr.isQuota = true;
+    throw quotaErr;
+  }
   if (code !== 200) {
     throw new Error('Gemini API returned HTTP ' + code + ': ' + body.substring(0, 500));
   }
@@ -128,6 +137,9 @@ function callGemini_(parts, config) {
   var candidate = json.candidates[0];
   if (candidate.finishReason === 'SAFETY') {
     throw new Error('Gemini blocked the response for safety reasons.');
+  }
+  if (candidate.finishReason === 'MAX_TOKENS') {
+    throw new Error('Gemini output was truncated (MAX_TOKENS). Consider raising maxOutputTokens.');
   }
 
   var text;
@@ -152,12 +164,12 @@ function callGemini_(parts, config) {
 }
 
 /**
- * Fetch with a single retry (with backoff) on 429/5xx.
+ * Fetch with a single retry (with backoff) on 5xx. 429s are not retried here —
+ * they mean quota exhaustion, which pauses the whole run until the next cycle.
  */
 function fetchWithRetry_(url, options) {
   var response = UrlFetchApp.fetch(url, options);
-  var code = response.getResponseCode();
-  if (code === 429 || code >= 500) {
+  if (response.getResponseCode() >= 500) {
     Utilities.sleep(2000);
     response = UrlFetchApp.fetch(url, options);
   }

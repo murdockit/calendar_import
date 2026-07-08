@@ -132,19 +132,35 @@ immediately instead of waiting for the trigger.
 
 ## Notes & tradeoffs
 
-- **Retries**: a message that fails processing keeps the `flyers` label and is
-  retried on the next run, up to 3 attempts (tracked via a script property
-  counter per message ID). After the 3rd failure it's moved to
+- **Retries**: a message whose extraction wholly fails keeps the `flyers`
+  label and is retried on the next run, up to 3 attempts (tracked via a script
+  property counter per message ID). After the 3rd failure it's moved to
   `flyers-failed` so it stops retrying forever; you can manually re-label it
-  back to `flyers` to try again (e.g. after fixing a bad API key).
+  back to `flyers` to try again (e.g. after fixing a bad API key). If only
+  some of a message's attachments fail, the message still counts as processed
+  (retrying would duplicate the successful ones) — the failures are just
+  reported in the summary.
+- **Quota exhaustion**: if the Gemini API reports quota/rate exhaustion
+  (HTTP 429), the run pauses immediately instead of failing every message —
+  nothing is penalized or moved to `flyers-failed`, and everything left over
+  simply retries on the next 15-minute run.
 - **Duplicates**: re-forwarding the same flyer is safe — before creating an
   event, the script checks for an existing event with the same title on the
   same day and skips it if found.
+- **Thread granularity**: processed/failed state is tracked per Gmail
+  *thread*. Gmail threads a re-forward with the identical subject into the
+  already-processed conversation, so it gets skipped. If you actually want a
+  flyer re-processed (e.g. an updated version), tweak the subject line when
+  forwarding, or remove the `flyers-processed` label from the thread.
 - **No recurring events**: a flyer that says "every Tuesday in April" will
   produce whichever discrete dates Gemini extracts, not a recurrence rule.
 - **Rate limits**: attachments are processed sequentially (not in parallel) to
-  stay within Gemini free-tier rate limits, and a 429/5xx gets one retry with
+  stay within Gemini free-tier rate limits, and a 5xx gets one retry with
   backoff before being reported as an error for that attachment.
+- **Thinking budget**: the request disables Gemini "thinking"
+  (`thinkingConfig: { thinkingBudget: 0 }`), which 2.5-series models support.
+  If you set `GEMINI_MODEL` to an older model that rejects `thinkingConfig`
+  (e.g. 2.0-era), remove that line from `gemini.gs`.
 - **Secrets**: the Gemini API key lives only in Script Properties, sent via
   the `x-goog-api-key` header (never in the URL or logs).
 
